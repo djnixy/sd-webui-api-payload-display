@@ -1,3 +1,6 @@
+import os
+import json
+import time
 from typing import Dict, Optional, Any, List
 import json
 import enum
@@ -254,6 +257,31 @@ class Script(scripts.Script):
         )
         try:
             self.api_payload = api_payload_dict(p, api_request)
+
+            # --- START: SAVE PAYLOAD TO FILE ---
+            try:
+                # Get the extension's base directory
+                base_dir = scripts.basedir()
+                
+                # Define the save directory path
+                save_dir = os.path.join(base_dir, "payloads")
+                
+                # Create the directory if it doesn't exist
+                os.makedirs(save_dir, exist_ok=True) 
+
+                # Create a unique filename using a timestamp
+                filename = f"payload_{int(time.time())}.json"
+                filepath = os.path.join(save_dir, filename)
+
+                # Write the payload to the json file
+                with open(filepath, "w", encoding="utf-8") as f:
+                    json.dump(self.api_payload, f, indent=4) 
+
+            except Exception as e:
+                # This will print an error to your console if saving fails
+                print(f"[ApiPayloadDisplay] Error saving payload to file: {e}")
+            # --- END: SAVE PAYLOAD TO FILE ---
+
         except Exception as e:
             tb_str = traceback.format_exception(
                 etype=type(e), value=e, tb=e.__traceback__
