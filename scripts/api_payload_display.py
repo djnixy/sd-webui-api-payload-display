@@ -7,7 +7,7 @@ import enum
 import traceback
 import base64
 import io
-
+from datetime import datetime
 import cv2
 import gradio as gr
 import pydantic
@@ -243,7 +243,7 @@ class Script(scripts.Script):
         )
         return []
 
-    def process(self, p: StableDiffusionProcessing, *args):
+def process(self, p: StableDiffusionProcessing, *args):
         """
         This function is called before processing begins for AlwaysVisible scripts.
         You can modify the processing object (p) here, inject hooks, etc.
@@ -255,6 +255,7 @@ class Script(scripts.Script):
             if is_img2img
             else StableDiffusionTxt2ImgProcessingAPI
         )
+
         try:
             self.api_payload = api_payload_dict(p, api_request)
 
@@ -262,14 +263,19 @@ class Script(scripts.Script):
             try:
                 # Get the extension's base directory
                 base_dir = scripts.basedir()
-                
+
                 # Define the save directory path
                 save_dir = os.path.join(base_dir, "payloads")
-                
-                # Create the directory if it doesn't exist
-                os.makedirs(save_dir, exist_ok=True) 
 
-                timestamp_filename = f"payload_{int(time.time())}.json"
+                # Create the directory if it doesn't exist
+                os.makedirs(save_dir, exist_ok=True)
+
+                # --- Create human-readable timestamp ---
+                # Use datetime.now() and strftime to format the timestamp
+                now_str = datetime.now().strftime("%Y-%m-%d_%H-%M")
+                timestamp_filename = f"payload_{now_str}.json"
+                # --- End change ---
+
                 timestamp_filepath = os.path.join(save_dir, timestamp_filename)
                 with open(timestamp_filepath, "w", encoding="utf-8") as f:
                     json.dump(self.api_payload, f, indent=4)
@@ -281,6 +287,7 @@ class Script(scripts.Script):
                 with open(latest_filepath, "w", encoding="utf-8") as f: # "w" mode automatically overwrites
                     json.dump(self.api_payload, f, indent=4)
                 print(f"[ApiPayloadDisplay] DEBUG: Successfully saved/overwritten latest file to: {latest_filepath}")
+
             except Exception as e:
                 print(f"[ApiPayloadDisplay] Error saving payload to file: {e}")
             # --- END: SAVE PAYLOAD TO FILE ---
