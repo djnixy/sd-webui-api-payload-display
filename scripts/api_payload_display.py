@@ -281,6 +281,9 @@ class Script(scripts.Script):
                 with open(latest_filepath, "w", encoding="utf-8") as f: # "w" mode automatically overwrites
                     json.dump(self.api_payload, f, indent=4)
                 print(f"[ApiPayloadDisplay] DEBUG: Successfully saved/overwritten latest file to: {latest_filepath}")
+            except Exception as e:
+                print(f"[ApiPayloadDisplay] Error saving payload to file: {e}")
+            # --- END: SAVE PAYLOAD TO FILE ---
 
         except Exception as e:
             tb_str = traceback.format_exception(
