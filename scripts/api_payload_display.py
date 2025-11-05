@@ -243,7 +243,8 @@ class Script(scripts.Script):
         )
         return []
 
-def process(self, p: StableDiffusionProcessing, *args):
+    # --- THIS FUNCTION IS NOW INDENTED TO BE PART OF THE "Script" CLASS ---
+    def process(self, p: StableDiffusionProcessing, *args):
         """
         This function is called before processing begins for AlwaysVisible scripts.
         You can modify the processing object (p) here, inject hooks, etc.
@@ -263,19 +264,15 @@ def process(self, p: StableDiffusionProcessing, *args):
 
             # --- START: SAVE PAYLOAD TO FILE (ROBUST PATH) ---
             try:
-                # --- THIS IS THE NEW, MORE RELIABLE PATH LOGIC ---
                 # Get the absolute path of the current script file (api_payload_display.py)
-                # __file__ is a built-in Python variable
                 script_path = os.path.realpath(__file__)
                 
-                # Get the directory containing the script (e.g., .../extensions/sd-webui-api-payload-display/scripts)
+                # Get the directory containing the script (.../scripts)
                 script_dir = os.path.dirname(script_path)
                 
-                # Go up one level to get the extension's base directory (e.g., .../extensions/sd-webui-api-payload-display)
+                # Go up one level to get the extension's base directory
                 base_dir = os.path.dirname(script_dir)
                 
-                # --- END OF NEW LOGIC ---
-
                 # Define the save directory path
                 save_dir = os.path.join(base_dir, "payloads")
                 
@@ -308,8 +305,9 @@ def process(self, p: StableDiffusionProcessing, *args):
                 "Exception": str(e),
                 "Traceback": "".join(tb_str),
             }
+            # --- ADDED THIS LINE ---
             print(f"[ApiPayloadDisplay] FATAL Error creating payload: {e}")
-            
+
 
 def on_ui_settings():
     section = ("api_display", "API Display")
