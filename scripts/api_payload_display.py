@@ -244,7 +244,12 @@ class Script(scripts.Script):
         return []
 
 def process(self, p: StableDiffusionProcessing, *args):
-        # --- ADDED THIS LINE ---
+        """
+        This function is called before processing begins for AlwaysVisible scripts.
+        You can modify the processing object (p) here, inject hooks, etc.
+        args contains all values returned by components from ui()
+        """
+        # --- ADDED THIS LINE FOR DEBUGGING ---
         print(f"[ApiPayloadDisplay] DEBUG: 'process' function STARTED.")
 
         is_img2img = isinstance(p, StableDiffusionProcessingImg2Img)
@@ -256,11 +261,23 @@ def process(self, p: StableDiffusionProcessing, *args):
         try:
             self.api_payload = api_payload_dict(p, api_request)
 
-            # --- START: SAVE PAYLOAD TO FILE (HARDCODED PATH) ---
+            # --- START: SAVE PAYLOAD TO FILE (ROBUST PATH) ---
             try:
-                # --- THIS IS THE MODIFIED PART ---
-                # We are forcing the save path here to be 100% sure.
-                save_dir = "Z:\\sdforge\\payloads"
+                # --- THIS IS THE NEW, MORE RELIABLE PATH LOGIC ---
+                # Get the absolute path of the current script file (api_payload_display.py)
+                # __file__ is a built-in Python variable
+                script_path = os.path.realpath(__file__)
+                
+                # Get the directory containing the script (e.g., .../extensions/sd-webui-api-payload-display/scripts)
+                script_dir = os.path.dirname(script_path)
+                
+                # Go up one level to get the extension's base directory (e.g., .../extensions/sd-webui-api-payload-display)
+                base_dir = os.path.dirname(script_dir)
+                
+                # --- END OF NEW LOGIC ---
+
+                # Define the save directory path
+                save_dir = os.path.join(base_dir, "payloads")
                 
                 # Create the directory if it doesn't exist
                 os.makedirs(save_dir, exist_ok=True) 
@@ -291,7 +308,6 @@ def process(self, p: StableDiffusionProcessing, *args):
                 "Exception": str(e),
                 "Traceback": "".join(tb_str),
             }
-            # --- ADDED THIS LINE ---
             print(f"[ApiPayloadDisplay] FATAL Error creating payload: {e}")
             
 
