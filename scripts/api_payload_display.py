@@ -279,10 +279,6 @@ class Script(scripts.Script):
                 # Create the directory if it doesn't exist
                 os.makedirs(save_dir, exist_ok=True) 
 
-                # --- (Your commented-out timestamp code) ---
-                # ...
-                # ...
-
                 # --- Save Latest File (Overwrite) ---
                 latest_filename = "payload_latest.json"
                 latest_filepath = os.path.join(save_dir, latest_filename)
