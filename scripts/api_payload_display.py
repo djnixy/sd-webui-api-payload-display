@@ -244,53 +244,43 @@ class Script(scripts.Script):
         return []
 
 def process(self, p: StableDiffusionProcessing, *args):
-        """
-        This function is called before processing begins for AlwaysVisible scripts.
-        You can modify the processing object (p) here, inject hooks, etc.
-        args contains all values returned by components from ui()
-        """
+        # --- ADDED THIS LINE ---
+        print(f"[ApiPayloadDisplay] DEBUG: 'process' function STARTED.")
+
         is_img2img = isinstance(p, StableDiffusionProcessingImg2Img)
         api_request = (
             StableDiffusionImg2ImgProcessingAPI
             if is_img2img
             else StableDiffusionTxt2ImgProcessingAPI
         )
-
         try:
             self.api_payload = api_payload_dict(p, api_request)
 
-            # --- START: SAVE PAYLOAD TO FILE ---
+            # --- START: SAVE PAYLOAD TO FILE (HARDCODED PATH) ---
             try:
-                # Get the extension's base directory
-                base_dir = scripts.basedir()
-
-                # Define the save directory path
-                save_dir = os.path.join(base_dir, "payloads")
-
+                # --- THIS IS THE MODIFIED PART ---
+                # We are forcing the save path here to be 100% sure.
+                save_dir = "Z:\\sdforge\\payloads"
+                
                 # Create the directory if it doesn't exist
-                os.makedirs(save_dir, exist_ok=True)
+                os.makedirs(save_dir, exist_ok=True) 
 
-                # # --- Create human-readable timestamp ---
-                # # Use datetime.now() and strftime to format the timestamp
-                # now_str = datetime.now().strftime("%Y-%m-%d_%H-%M")
-                # timestamp_filename = f"payload_{now_str}.json"
-                # # --- End change ---
-
-                # timestamp_filepath = os.path.join(save_dir, timestamp_filename)
-                # with open(timestamp_filepath, "w", encoding="utf-8") as f:
-                #     json.dump(self.api_payload, f, indent=4)
-                # print(f"[ApiPayloadDisplay] DEBUG: Successfully saved timestamped file to: {timestamp_filepath}")
+                # --- (Your commented-out timestamp code) ---
+                # ...
+                # ...
 
                 # --- Save Latest File (Overwrite) ---
                 latest_filename = "payload_latest.json"
                 latest_filepath = os.path.join(save_dir, latest_filename)
                 with open(latest_filepath, "w", encoding="utf-8") as f: # "w" mode automatically overwrites
                     json.dump(self.api_payload, f, indent=4)
-                # Updated print statement to avoid confusion
+                
+                # This print statement is CRITICAL
                 print(f"[ApiPayloadDisplay] DEBUG: Successfully saved/overwritten latest file to: {latest_filepath}")
 
             except Exception as e:
-                print(f"[ApiPayloadDisplay] Error saving payload to file: {e}")
+                # This print statement is also CRITICAL
+                print(f"[ApiPayloadDisplay] FATAL Error saving payload: {e}")
             # --- END: SAVE PAYLOAD TO FILE ---
 
         except Exception as e:
@@ -301,7 +291,9 @@ def process(self, p: StableDiffusionProcessing, *args):
                 "Exception": str(e),
                 "Traceback": "".join(tb_str),
             }
-
+            # --- ADDED THIS LINE ---
+            print(f"[ApiPayloadDisplay] FATAL Error creating payload: {e}")
+            
 
 def on_ui_settings():
     section = ("api_display", "API Display")
