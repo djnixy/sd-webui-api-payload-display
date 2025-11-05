@@ -270,22 +270,23 @@ def process(self, p: StableDiffusionProcessing, *args):
                 # Create the directory if it doesn't exist
                 os.makedirs(save_dir, exist_ok=True)
 
-                # --- Create human-readable timestamp ---
-                # Use datetime.now() and strftime to format the timestamp
-                now_str = datetime.now().strftime("%Y-%m-%d_%H-%M")
-                timestamp_filename = f"payload_{now_str}.json"
-                # --- End change ---
+                # # --- Create human-readable timestamp ---
+                # # Use datetime.now() and strftime to format the timestamp
+                # now_str = datetime.now().strftime("%Y-%m-%d_%H-%M")
+                # timestamp_filename = f"payload_{now_str}.json"
+                # # --- End change ---
 
-                timestamp_filepath = os.path.join(save_dir, timestamp_filename)
-                with open(timestamp_filepath, "w", encoding="utf-8") as f:
-                    json.dump(self.api_payload, f, indent=4)
-                print(f"[ApiPayloadDisplay] DEBUG: Successfully saved timestamped file to: {timestamp_filepath}")
+                # timestamp_filepath = os.path.join(save_dir, timestamp_filename)
+                # with open(timestamp_filepath, "w", encoding="utf-8") as f:
+                #     json.dump(self.api_payload, f, indent=4)
+                # print(f"[ApiPayloadDisplay] DEBUG: Successfully saved timestamped file to: {timestamp_filepath}")
 
                 # --- Save Latest File (Overwrite) ---
                 latest_filename = "payload_latest.json"
                 latest_filepath = os.path.join(save_dir, latest_filename)
                 with open(latest_filepath, "w", encoding="utf-8") as f: # "w" mode automatically overwrites
                     json.dump(self.api_payload, f, indent=4)
+                # Updated print statement to avoid confusion
                 print(f"[ApiPayloadDisplay] DEBUG: Successfully saved/overwritten latest file to: {latest_filepath}")
 
             except Exception as e:
