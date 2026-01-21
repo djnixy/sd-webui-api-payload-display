@@ -288,6 +288,15 @@ class Script(scripts.Script):
                 # This print statement is CRITICAL
                 print(f"[ApiPayloadDisplay] DEBUG: Successfully saved/overwritten latest file to: {latest_filepath}")
 
+                # --- Save Timestamped File ---
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                timestamped_filename = f"payload_{timestamp}.json"
+                timestamped_filepath = os.path.join(save_dir, timestamped_filename)
+                with open(timestamped_filepath, "w", encoding="utf-8") as f:
+                    json.dump(self.api_payload, f, indent=4)
+
+                print(f"[ApiPayloadDisplay] DEBUG: Successfully saved timestamped file to: {timestamped_filepath}")
+
             except Exception as e:
                 # This print statement is also CRITICAL
                 print(f"[ApiPayloadDisplay] FATAL Error saving payload: {e}")
