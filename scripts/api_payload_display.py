@@ -2,7 +2,6 @@ import os
 import json
 import time
 from typing import Dict, Optional, Any, List
-import json
 import enum
 import traceback
 import base64
@@ -81,13 +80,6 @@ def make_json_compatible(value: Any) -> Any:
 def selectable_script_payload(p: StableDiffusionProcessing) -> Dict:
     """
     Get payload for selectable script based on the provided processing object.
-
-    Args:
-        p (StableDiffusionProcessing): Processing object containing script information.
-
-    Returns:
-        dict: A dictionary with the name of the selected script and its arguments. If no script is selected,
-        the function returns a dictionary with 'None' as the script name and an empty list for script arguments.
     """
     script_runner: scripts.ScriptRunner = p.scripts
 
@@ -112,12 +104,6 @@ def selectable_script_payload(p: StableDiffusionProcessing) -> Dict:
 def alwayson_script_payload(p: StableDiffusionProcessing) -> Dict:
     """
     Get payloads for always-on scripts based on the provided processing object.
-
-    Args:
-        p (StableDiffusionProcessing): Processing object containing script information.
-
-    Returns:
-        dict: A dictionary with all always-on scripts along with their arguments.
     """
     script_runner: scripts.ScriptRunner = p.scripts
 
@@ -133,12 +119,6 @@ def alwayson_script_payload(p: StableDiffusionProcessing) -> Dict:
 def seed_enable_extras_payload(p: StableDiffusionProcessing) -> Dict:
     """
     Determine if seed extras should be enabled based on the provided processing object.
-
-    Args:
-        p (StableDiffusionProcessing): Processing object containing seed information.
-
-    Returns:
-        dict: A dictionary indicating if seed extras should be enabled.
     """
     return {
         "seed_enable_extras": not (
@@ -153,22 +133,11 @@ def seed_enable_extras_payload(p: StableDiffusionProcessing) -> Dict:
 def api_payload_dict(
     p: StableDiffusionProcessing, api_request: pydantic.BaseModel
 ) -> Dict:
-    """Get the API payload as a JSON compatible dict.
-    Argument:
-        api_request(pydantic.BaseModel): The corresponding api request model, either
-            - StableDiffusionTxt2ImgProcessingAPI
-            - StableDiffusionImg2ImgProcessingAPI
-    Returns:
-        JSON compatible dict representing the API payload.
-    """
+    """Get the API payload as a JSON compatible dict."""
     excluded_params = [
-        # Following params are optional. The effect can be achieved by passing
-        # hr_upscale_to_x/y and with/height.
         "firstphase_width",
         "firstphase_height",
-        # Deprecated field.
         "sampler_index",
-        # Optional fields.
         "send_images",
         "save_images",
     ]
@@ -219,17 +188,11 @@ class Script(scripts.Script):
         return scripts.AlwaysVisible
 
     def ui(self, is_img2img: bool) -> List:
-        """this function should create gradio UI elements. See https://gradio.app/docs/#components
-        The return value should be an array of all components that are used in processing.
-        Values of those returned components will be passed to run() and process() functions.
-        """
         process_type_prefix = "img2img" if is_img2img else "txt2img"
 
         with gr.Accordion(
             f"API payload", open=False, elem_classes=["api-payload-display"]
         ):
-            # When front-end triggers this click event, data from backend will
-            # be pushed to front-end.
             pull_button = gr.Button(
                 visible=False,
                 elem_classes=["api-payload-pull"],
@@ -247,14 +210,10 @@ class Script(scripts.Script):
         )
         return []
 
-    # --- THIS FUNCTION IS NOW INDENTED TO BE PART OF THE "Script" CLASS ---
     def process(self, p: StableDiffusionProcessing, *args):
         """
         This function is called before processing begins for AlwaysVisible scripts.
-        You can modify the processing object (p) here, inject hooks, etc.
-        args contains all values returned by components from ui()
         """
-        # --- ADDED THIS LINE FOR DEBUGGING ---
         print(f"[ApiPayloadDisplay] DEBUG: 'process' function STARTED.")
 
         is_img2img = isinstance(p, StableDiffusionProcessingImg2Img)
@@ -266,27 +225,24 @@ class Script(scripts.Script):
         try:
             self.api_payload = api_payload_dict(p, api_request)
 
-            # --- START: SAVE PAYLOAD TO FILE (ROBUST PATH) ---
+            # --- START: SAVE PAYLOAD TO FILE ---
             try:
                 # Check for hires fix
                 if not self.api_payload.get("enable_hr", False):
                     print("[ApiPayloadDisplay] INFO: Payload saving skipped due to no hires fix.")
                     return
 
-                # Get the absolute path of the current script file (api_payload_display.py)
+                # Get the absolute path of the current script file
                 script_path = os.path.realpath(__file__)
-                
-                # Get the directory containing the script (.../scripts)
                 script_dir = os.path.dirname(script_path)
-                
-                # Go up one level to get the extension's base directory
                 base_dir = os.path.dirname(script_dir)
                 
                 # Define the save directory path
                 save_dir = os.path.join(base_dir, "payloads")
 
-                # Check for xyz plot script
-                if self.api_payload.get("script_name", "").lower() == "xyz plot":
+                # Check for xyz plot script safely
+                script_name = self.api_payload.get("script_name")
+                if script_name and script_name.lower() == "xyz plot":
                     save_dir = os.path.join(save_dir, "xyz_plot")
 
                 # Create the directory if it doesn't exist
@@ -295,10 +251,9 @@ class Script(scripts.Script):
                 # --- Save Latest File (Overwrite) ---
                 latest_filename = "payload_latest.json"
                 latest_filepath = os.path.join(save_dir, latest_filename)
-                with open(latest_filepath, "w", encoding="utf-8") as f: # "w" mode automatically overwrites
+                with open(latest_filepath, "w", encoding="utf-8") as f:
                     json.dump(self.api_payload, f, indent=4)
                 
-                # This print statement is CRITICAL
                 print(f"[ApiPayloadDisplay] DEBUG: Successfully saved/overwritten latest file to: {latest_filepath}")
 
                 # --- Save Timestamped File ---
@@ -311,7 +266,6 @@ class Script(scripts.Script):
                 print(f"[ApiPayloadDisplay] DEBUG: Successfully saved timestamped file to: {timestamped_filepath}")
 
             except Exception as e:
-                # This print statement is also CRITICAL
                 print(f"[ApiPayloadDisplay] FATAL Error saving payload: {e}")
             # --- END: SAVE PAYLOAD TO FILE ---
 
@@ -323,7 +277,6 @@ class Script(scripts.Script):
                 "Exception": str(e),
                 "Traceback": "".join(tb_str),
             }
-            # --- ADDED THIS LINE ---
             print(f"[ApiPayloadDisplay] FATAL Error creating payload: {e}")
 
 
@@ -345,13 +298,9 @@ script_callbacks.on_ui_settings(on_ui_settings)
 
 
 def organize_existing_payloads():
-    # Get the absolute path of the current script file (api_payload_display.py)
+    # Get the absolute path of the current script file
     script_path = os.path.realpath(__file__)
-
-    # Get the directory containing the script (.../scripts)
     script_dir = os.path.dirname(script_path)
-
-    # Go up one level to get the extension's base directory
     base_dir = os.path.dirname(script_dir)
 
     payloads_dir = os.path.join(base_dir, "payloads")
@@ -373,12 +322,14 @@ def organize_existing_payloads():
                 with open(filepath, "r", encoding="utf-8") as f:
                     data = json.load(f)
 
-                if data.get("script_name", "").lower() == "xyz plot":
+                # --- FIX: Check if script_name exists before calling .lower() ---
+                script_name = data.get("script_name")
+                if script_name and script_name.lower() == "xyz plot":
                     new_filepath = os.path.join(xyz_plot_dir, filename)
                     os.rename(filepath, new_filepath)
                     print(f"[ApiPayloadDisplay] INFO: Moved XYZ plot payload {filename} to xyz_plot folder.")
 
-            except (json.JSONDecodeError, IOError) as e:
+            except (json.JSONDecodeError, IOError, AttributeError) as e:
                 print(f"[ApiPayloadDisplay] ERROR: Could not process {filename}: {e}")
 
 
