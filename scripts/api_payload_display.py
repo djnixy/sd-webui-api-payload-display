@@ -32,15 +32,20 @@ BASE64_IMAGE_PLACEHOLDER = "base64image placeholder"
 _LAST_PAYLOAD_HASH = None
 _LAST_SAVE_TIME = 0
 
-
-def img_to_data_url(img: np.ndarray) -> str:
-    pil_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+# --- HELPER: Convert PIL Image to Base64 String ---
+def pil_to_data_url(pil_img: Image.Image) -> str:
     iobuf = io.BytesIO()
+    # Save as PNG to preserve quality/transparency
     pil_img.save(iobuf, format="png")
     binary_img = iobuf.getvalue()
     base64_img = base64.b64encode(binary_img)
     base64_img_str = base64_img.decode("utf-8")
     return "data:image/png;base64," + base64_img_str
+
+def img_to_data_url(img: np.ndarray) -> str:
+    # Convert Numpy Array -> PIL Image
+    pil_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    return pil_to_data_url(pil_img)
 
 
 def make_json_compatible(value: Any) -> Any:
@@ -63,9 +68,21 @@ def make_json_compatible(value: Any) -> Any:
     if isinstance(value, enum.Enum):
         return make_json_compatible(value.value)
 
+    # --- CHANGED: Default is now TRUE for images ---
+    # We check if the user *explicitly* disabled it, otherwise we save the image.
+    include_images = shared.opts.data.get("api_display_include_base64_images", True)
+
+    # Handle Numpy Arrays (OpenCV images)
     if isinstance(value, np.ndarray):
-        if shared.opts.data.get("api_display_include_base64_images", False):
+        if include_images:
             return img_to_data_url(value)
+        else:
+            return BASE64_IMAGE_PLACEHOLDER
+
+    # --- NEW: Handle PIL Images (ControlNet often uses this) ---
+    if isinstance(value, Image.Image):
+        if include_images:
+            return pil_to_data_url(value)
         else:
             return BASE64_IMAGE_PLACEHOLDER
 
@@ -82,7 +99,6 @@ def selectable_script_payload(p: StableDiffusionProcessing) -> Dict:
     script_runner: scripts.ScriptRunner = p.scripts
     selectable_script_index = p.script_args[0]
     
-    # 0 means "None" / No script selected
     if selectable_script_index == 0:
         return {"script_name": None, "script_args": []}
 
@@ -147,9 +163,15 @@ def api_payload_dict(
         value = getattr(p, name)
         if value is None:
             continue
+        
+        # --- FIXED: Allow init_images to be processed (Base64) ---
         if isinstance(p, StableDiffusionProcessingImg2Img) and name == "init_images":
-            assert isinstance(value, list)
-            value = [BASE64_IMAGE_PLACEHOLDER]
+            if isinstance(value, list):
+                # This will recursively call make_json_compatible on the images
+                value = [make_json_compatible(v) for v in value]
+            else:
+                 value = [BASE64_IMAGE_PLACEHOLDER]
+        
         result[name] = value
 
     return make_json_compatible(result)
@@ -161,11 +183,8 @@ def format_payload(payload: Optional[Dict]) -> str:
     return json.dumps(payload, sort_keys=True, allow_nan=False)
 
 
-# --- UPDATED HELPER: Detect tags with correct script name string ---
 def get_payload_tags(payload: Dict) -> str:
     script_name = payload.get("script_name")
-    
-    # Updated to check for "x/y/z plot" specifically
     is_xyz = script_name and script_name.lower() == "x/y/z plot"
     
     is_cnet = False
@@ -297,7 +316,7 @@ def on_ui_settings():
     shared.opts.add_option(
         "api_display_include_base64_images",
         shared.OptionInfo(
-            False,
+            True,  # <--- DEFAULT SET TO TRUE NOW
             "Include base64 images in the payload.",
             gr.Checkbox,
             {"interactive": True},
@@ -310,6 +329,7 @@ script_callbacks.on_ui_settings(on_ui_settings)
 
 
 def organize_existing_payloads():
+    # --- OPTIMIZATION: Skip renaming if files already look correct ---
     script_path = os.path.realpath(__file__)
     base_dir = os.path.dirname(os.path.dirname(script_path))
     payloads_dir = os.path.join(base_dir, "payloads")
@@ -323,12 +343,14 @@ def organize_existing_payloads():
     for filename in os.listdir(payloads_dir):
         if not filename.endswith(".json"):
             continue
-            
+        
+        # Optimization: If it's already got a tag or is the latest file, skip full check
+        if "_cnet_" in filename or "_xyz_" in filename or filename == "payload_latest.json":
+             continue
+
         filepath = os.path.join(payloads_dir, filename)
         
         if not os.path.isfile(filepath):
-            continue
-        if filename == "payload_latest.json":
             continue
 
         try:
