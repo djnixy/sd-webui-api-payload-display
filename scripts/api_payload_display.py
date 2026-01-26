@@ -13,6 +13,7 @@ import gradio as gr
 import pydantic
 import numpy as np
 from PIL import Image
+import hashlib
 
 import modules.scripts as scripts
 from modules import shared, script_callbacks
@@ -26,6 +27,10 @@ from modules.processing import (
 )
 
 BASE64_IMAGE_PLACEHOLDER = "base64image placeholder"
+
+# --- GLOBAL VARS FOR DEDUPLICATION ---
+_LAST_PAYLOAD_HASH = None
+_LAST_SAVE_TIME = 0
 
 
 def img_to_data_url(img: np.ndarray) -> str:
@@ -76,6 +81,8 @@ def make_json_compatible(value: Any) -> Any:
 def selectable_script_payload(p: StableDiffusionProcessing) -> Dict:
     script_runner: scripts.ScriptRunner = p.scripts
     selectable_script_index = p.script_args[0]
+    
+    # 0 means "None" / No script selected
     if selectable_script_index == 0:
         return {"script_name": None, "script_args": []}
 
@@ -83,6 +90,7 @@ def selectable_script_payload(p: StableDiffusionProcessing) -> Dict:
         selectable_script_index - 1
     ]
     title = selectable_script.title()
+    
     return {
         "script_name": title.lower()
         if title
@@ -153,22 +161,20 @@ def format_payload(payload: Optional[Dict]) -> str:
     return json.dumps(payload, sort_keys=True, allow_nan=False)
 
 
-# --- HELPER: Detect tags based on payload content ---
+# --- UPDATED HELPER: Detect tags with correct script name string ---
 def get_payload_tags(payload: Dict) -> str:
     script_name = payload.get("script_name")
-    is_xyz = script_name and script_name.lower() == "xyz plot"
+    
+    # Updated to check for "x/y/z plot" specifically
+    is_xyz = script_name and script_name.lower() == "x/y/z plot"
     
     is_cnet = False
     alwayson = payload.get("alwayson_scripts", {})
     
-    # Iterate through all AlwaysOn scripts to find ControlNet
     for key, data in alwayson.items():
         if "controlnet" in key.lower():
-            # Get the arguments list
             args = data.get("args", [])
-            # Iterate through controlnet units (usually 3 or more)
             for unit in args:
-                # Check if this unit is a dictionary and is explicitly enabled
                 if isinstance(unit, dict) and unit.get("enabled", False) is True:
                     is_cnet = True
                     break
@@ -216,6 +222,8 @@ class Script(scripts.Script):
         return []
 
     def process(self, p: StableDiffusionProcessing, *args):
+        global _LAST_PAYLOAD_HASH, _LAST_SAVE_TIME
+        
         print(f"[ApiPayloadDisplay] DEBUG: 'process' function STARTED.")
         is_img2img = isinstance(p, StableDiffusionProcessingImg2Img)
         api_request = (
@@ -225,6 +233,18 @@ class Script(scripts.Script):
         )
         try:
             self.api_payload = api_payload_dict(p, api_request)
+            
+            # --- DEDUPLICATION CHECK ---
+            payload_str = json.dumps(self.api_payload, sort_keys=True)
+            current_hash = hashlib.md5(payload_str.encode('utf-8')).hexdigest()
+            current_time = time.time()
+
+            if _LAST_PAYLOAD_HASH == current_hash and (current_time - _LAST_SAVE_TIME) < 2.0:
+                print("[ApiPayloadDisplay] INFO: Skipping duplicate payload save.")
+                return
+            
+            _LAST_PAYLOAD_HASH = current_hash
+            _LAST_SAVE_TIME = current_time
 
             # --- START: SAVE PAYLOAD LOGIC ---
             try:
@@ -235,21 +255,16 @@ class Script(scripts.Script):
                 
                 os.makedirs(payloads_dir, exist_ok=True)
                 
-                # Check for High-Res Fix
                 enable_hr = self.api_payload.get("enable_hr", False)
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 
                 if not enable_hr:
-                    # Save to drafts
                     os.makedirs(drafts_dir, exist_ok=True)
                     save_dir = drafts_dir
                     filename = f"payload_{timestamp}.json"
                 else:
-                    # Save to main folder with tags
                     save_dir = payloads_dir
                     tag = get_payload_tags(self.api_payload)
-                    
-                    # Requested format: payload_<tag>_<timestamp>.json
                     if tag:
                         filename = f"payload_{tag}_{timestamp}.json"
                     else:
@@ -257,13 +272,11 @@ class Script(scripts.Script):
 
                 filepath = os.path.join(save_dir, filename)
 
-                # Save file
                 with open(filepath, "w", encoding="utf-8") as f:
                     json.dump(self.api_payload, f, indent=4)
 
                 print(f"[ApiPayloadDisplay] DEBUG: Saved payload to: {filepath}")
 
-                # Save "latest" file in ROOT if HR enabled
                 if enable_hr:
                     latest_filepath = os.path.join(payloads_dir, "payload_latest.json")
                     with open(latest_filepath, "w", encoding="utf-8") as f:
@@ -297,12 +310,6 @@ script_callbacks.on_ui_settings(on_ui_settings)
 
 
 def organize_existing_payloads():
-    """
-    Startup logic:
-    1. If !enable_hr -> Move to drafts.
-    2. If enable_hr -> Rename to payload_<tag>_<timestamp>.json
-       This corrects previously mis-tagged files (false cnet).
-    """
     script_path = os.path.realpath(__file__)
     base_dir = os.path.dirname(os.path.dirname(script_path))
     payloads_dir = os.path.join(base_dir, "payloads")
@@ -328,23 +335,14 @@ def organize_existing_payloads():
             with open(filepath, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            # 1. Check for Drafts (No HR)
             if not data.get("enable_hr", False):
                 new_filepath = os.path.join(drafts_dir, filename)
                 shutil.move(filepath, new_filepath)
                 print(f"[ApiPayloadDisplay] INFO: Moved non-HR payload {filename} to drafts.")
                 continue 
 
-            # 2. Check for Tags (HR is enabled)
-            # This recalculates tags based on actual content (checking enabled: true)
             tag = get_payload_tags(data)
             
-            # Extract Timestamp from existing filename
-            # Expected patterns:
-            # Old: payload_20230101_120000.json or payload_20230101_120000_cnet.json
-            # Target: payload_cnet_20230101_120000.json
-            
-            # Simple extraction: look for 15 chars digit/underscore sequence
             import re
             timestamp_match = re.search(r"(\d{8}_\d{6})", filename)
             
@@ -356,7 +354,6 @@ def organize_existing_payloads():
                 else:
                     new_filename = f"payload_{timestamp}.json"
                 
-                # Only rename if name is different
                 if filename != new_filename:
                     new_filepath = os.path.join(payloads_dir, new_filename)
                     os.rename(filepath, new_filepath)
