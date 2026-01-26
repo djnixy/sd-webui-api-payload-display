@@ -264,6 +264,11 @@ class Script(scripts.Script):
 
             # --- START: SAVE PAYLOAD TO FILE (ROBUST PATH) ---
             try:
+                # Check for hires fix
+                if not self.api_payload.get("enable_hr", False):
+                    print("[ApiPayloadDisplay] INFO: Payload saving skipped due to no hires fix.")
+                    return
+
                 # Get the absolute path of the current script file (api_payload_display.py)
                 script_path = os.path.realpath(__file__)
                 
@@ -275,7 +280,11 @@ class Script(scripts.Script):
                 
                 # Define the save directory path
                 save_dir = os.path.join(base_dir, "payloads")
-                
+
+                # Check for xyz plot script
+                if self.api_payload.get("script_name", "").lower() == "xyz plot":
+                    save_dir = os.path.join(save_dir, "xyz_plot")
+
                 # Create the directory if it doesn't exist
                 os.makedirs(save_dir, exist_ok=True) 
 
@@ -329,3 +338,48 @@ def on_ui_settings():
 
 
 script_callbacks.on_ui_settings(on_ui_settings)
+
+
+def organize_existing_payloads():
+    # Get the absolute path of the current script file (api_payload_display.py)
+    script_path = os.path.realpath(__file__)
+
+    # Get the directory containing the script (.../scripts)
+    script_dir = os.path.dirname(script_path)
+
+    # Go up one level to get the extension's base directory
+    base_dir = os.path.dirname(script_dir)
+
+    payloads_dir = os.path.join(base_dir, "payloads")
+    xyz_plot_dir = os.path.join(payloads_dir, "xyz_plot")
+
+    if not os.path.isdir(payloads_dir):
+        return
+
+    os.makedirs(xyz_plot_dir, exist_ok=True)
+
+    for filename in os.listdir(payloads_dir):
+        if filename.endswith(".json"):
+            filepath = os.path.join(payloads_dir, filename)
+
+            if not os.path.isfile(filepath):
+                continue
+
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+
+                if data.get("script_name", "").lower() == "xyz plot":
+                    new_filepath = os.path.join(xyz_plot_dir, filename)
+                    os.rename(filepath, new_filepath)
+                    print(f"[ApiPayloadDisplay] INFO: Moved XYZ plot payload {filename} to xyz_plot folder.")
+
+            except (json.JSONDecodeError, IOError) as e:
+                print(f"[ApiPayloadDisplay] ERROR: Could not process {filename}: {e}")
+
+
+def on_app_started(block, app):
+    organize_existing_payloads()
+
+
+script_callbacks.on_app_started(on_app_started)
