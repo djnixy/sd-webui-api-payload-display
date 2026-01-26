@@ -98,8 +98,11 @@ def selectable_script_payload(p: StableDiffusionProcessing) -> Dict:
     selectable_script: scripts.Script = script_runner.selectable_scripts[
         selectable_script_index - 1
     ]
+    title = selectable_script.title()
     return {
-        "script_name": selectable_script.title().lower(),
+        "script_name": title.lower()
+        if title
+        else os.path.basename(selectable_script.filename).lower(),
         "script_args": p.script_args[
             selectable_script.args_from : selectable_script.args_to
         ],
@@ -120,9 +123,10 @@ def alwayson_script_payload(p: StableDiffusionProcessing) -> Dict:
 
     all_scripts: Dict[str, List] = {}
     for alwayson_script in script_runner.alwayson_scripts:
-        all_scripts[alwayson_script.title()] = {
-            "args": p.script_args[alwayson_script.args_from : alwayson_script.args_to]
-        }
+        title = alwayson_script.title()
+        all_scripts[
+            title.lower() if title else os.path.basename(alwayson_script.filename).lower()
+        ] = {"args": p.script_args[alwayson_script.args_from : alwayson_script.args_to]}
     return {"alwayson_scripts": all_scripts}
 
 
