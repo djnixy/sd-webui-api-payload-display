@@ -36,6 +36,3 @@ if both, then both pattern will be included.
 # Deduplication
 - **Runtime Deduplication**: To avoid saving the same payload multiple times in quick succession, the script calculates a hash of the payload. If a payload with the same hash was saved less than 2 seconds ago, the new payload is not saved.
 - **Startup Deduplication**: As described in the Startup Behavior section, this feature cleans up duplicate payloads based on the prompt.
-
-# Note
-This extension implements [this feature request](https://github.com/AUTOMATIC1111/stable-diffusion-webui/issues/9120).
