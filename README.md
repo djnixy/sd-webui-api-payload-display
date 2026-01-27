@@ -7,5 +7,13 @@ Display the corresponding API payload after each generation on WebUI
 - Ctrl + click to recursively expand the json tree.
 - Click `copy` to copy the json payload to clipboard.
 
+# Features
+- Will create dated .json files upon generation.
+- if hr_enabled: false, move it to draft path
+- will create payload_latest.json, showing the latest json generation
+- automatically rename json based on the content, if controlnet was used then the filename will have _cnet_
+if xyz plot was used then the filename will have _xyz_
+if both, then both pattern will be included.
+
 # Note
 This extension implements [this feature request](https://github.com/AUTOMATIC1111/stable-diffusion-webui/issues/9120).
