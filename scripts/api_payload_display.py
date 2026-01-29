@@ -218,6 +218,9 @@ class Script(scripts.Script):
         is_img2img = isinstance(p, StableDiffusionProcessingImg2Img)
         api_request = StableDiffusionImg2ImgProcessingAPI if is_img2img else StableDiffusionTxt2ImgProcessingAPI
         
+        # Determine Mode for Filename
+        mode_tag = "img2img" if is_img2img else "txt2img"
+
         try:
             self.api_payload = api_payload_dict(p, api_request)
             
@@ -248,14 +251,14 @@ class Script(scripts.Script):
                 if not enable_hr:
                     os.makedirs(drafts_dir, exist_ok=True)
                     save_dir = drafts_dir
-                    filename = f"payload_{timestamp}.json"
+                    filename = f"payload_{mode_tag}_{timestamp}.json"
                 else:
                     save_dir = payloads_dir
                     tag = get_payload_tags(self.api_payload)
                     if tag:
-                        filename = f"payload_{tag}_{timestamp}.json"
+                        filename = f"payload_{mode_tag}_{tag}_{timestamp}.json"
                     else:
-                        filename = f"payload_{timestamp}.json"
+                        filename = f"payload_{mode_tag}_{timestamp}.json"
 
                 filepath = os.path.join(save_dir, filename)
 
@@ -272,7 +275,6 @@ class Script(scripts.Script):
                         json.dump(self.api_payload, f, indent=4)
 
                     # 2. Create Skeleton File
-                    # Check if it is XYZ Plot
                     script_name = self.api_payload.get("script_name", "")
                     is_xyz = script_name and script_name.lower() == "x/y/z plot"
 
@@ -336,17 +338,19 @@ def organize_and_deduplicate():
     
     do_deduplicate = shared.opts.data.get("api_display_startup_deduplicate", False)
     
-    # List of protected files to ignore during cleanup
+    # --- PROTECTED FILES LIST (Crucial for ensuring skeletons are ignored) ---
     PROTECTED_FILES = ["payload_latest.json", "payload_single_skeleton.json", "payload_xyz_skeleton.json"]
 
     # 1. ORGANIZE
     print("[ApiPayloadDisplay] Starting Organization...")
     for filename in os.listdir(payloads_dir):
         if not filename.endswith(".json"): continue
-        if filename in PROTECTED_FILES: continue  # SKIP SKELETONS
+        if filename in PROTECTED_FILES: continue  # SKIP SKELETONS & LATEST
 
-        if "_cnet_" in filename or "_xyz_" in filename:
-             pass 
+        # Optimization: Skip if already tagged correctly with MODE (txt2img/img2img)
+        # This prevents checking every single file every boot once they are migrated.
+        if "_txt2img_" in filename or "_img2img_" in filename:
+             continue 
         
         filepath = os.path.join(payloads_dir, filename)
         if not os.path.isfile(filepath): continue
@@ -355,16 +359,26 @@ def organize_and_deduplicate():
             with open(filepath, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
+            # Move Drafts (Non-HR)
             if not data.get("enable_hr", False):
                 new_filepath = os.path.join(drafts_dir, filename)
                 shutil.move(filepath, new_filepath)
                 continue 
             
+            # Detect Mode from JSON content
+            # "init_images" is only present in Img2Img payloads
+            mode_tag = "img2img" if "init_images" in data else "txt2img"
+
             tag = get_payload_tags(data)
             match = re.search(r"(\d{8}_\d{6})", filename)
             if match:
                 timestamp = match.group(1)
-                new_filename = f"payload_{tag}_{timestamp}.json" if tag else f"payload_{timestamp}.json"
+                
+                # Construct New Filename with Mode
+                if tag:
+                    new_filename = f"payload_{mode_tag}_{tag}_{timestamp}.json"
+                else:
+                    new_filename = f"payload_{mode_tag}_{timestamp}.json"
                 
                 if filename != new_filename:
                     new_filepath = os.path.join(payloads_dir, new_filename)
