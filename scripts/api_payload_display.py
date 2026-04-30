@@ -267,36 +267,37 @@ class Script(scripts.Script):
 
                 print(f"[ApiPayloadDisplay] DEBUG: Saved payload to: {filepath}")
 
-                # --- SKELETON & LATEST LOGIC (Only if HR Enabled) ---
+                # --- SKELETON & LATEST LOGIC ---
                 if enable_hr:
-                    # 1. Update payload_latest.json
+                    # 1. Update payload_latest.json (Only for HR)
                     latest_filepath = os.path.join(payloads_dir, "payload_latest.json")
                     with open(latest_filepath, "w", encoding="utf-8") as f:
                         json.dump(self.api_payload, f, indent=4)
 
-                    # 2. Create Skeleton File
-                    script_name = self.api_payload.get("script_name", "")
-                    is_xyz = script_name and script_name.lower() == "x/y/z plot"
+                # 2. Create Skeleton File (For both HR and non-HR)
+                script_name = self.api_payload.get("script_name", "")
+                is_xyz = script_name and script_name.lower() == "x/y/z plot"
 
-                    if is_xyz:
-                        skeleton_filename = "payload_xyz_skeleton.json"
-                    else:
-                        skeleton_filename = "payload_single_skeleton.json"
+                # Determine the correct skeleton filename based on HR state and Script
+                if enable_hr:
+                    skeleton_filename = "payload_xyz_skeleton.json" if is_xyz else "payload_single_skeleton.json"
+                else:
+                    skeleton_filename = "payload_xyz_lr_skeleton.json" if is_xyz else "payload_single_lr_skeleton.json"
 
-                    # Create a copy to modify
-                    skeleton_payload = self.api_payload.copy()
-                    
-                    # Apply Skeleton Rules: Remove prompt & hr_prompt, keep negatives, Seed -1
-                    skeleton_payload["prompt"] = ""
-                    if "hr_prompt" in skeleton_payload:
-                        skeleton_payload["hr_prompt"] = ""
-                    skeleton_payload["seed"] = -1
-                    
-                    skeleton_filepath = os.path.join(payloads_dir, skeleton_filename)
-                    with open(skeleton_filepath, "w", encoding="utf-8") as f:
-                        json.dump(skeleton_payload, f, indent=4)
-                    
-                    print(f"[ApiPayloadDisplay] DEBUG: Updated skeleton file: {skeleton_filename}")
+                # Create a copy to modify
+                skeleton_payload = self.api_payload.copy()
+                
+                # Apply Skeleton Rules: Remove prompt & hr_prompt, keep negatives, Seed -1
+                skeleton_payload["prompt"] = ""
+                if "hr_prompt" in skeleton_payload:
+                    skeleton_payload["hr_prompt"] = ""
+                skeleton_payload["seed"] = -1
+                
+                skeleton_filepath = os.path.join(payloads_dir, skeleton_filename)
+                with open(skeleton_filepath, "w", encoding="utf-8") as f:
+                    json.dump(skeleton_payload, f, indent=4)
+                
+                print(f"[ApiPayloadDisplay] DEBUG: Updated skeleton file: {skeleton_filename}")
 
             except Exception as e:
                 print(f"[ApiPayloadDisplay] FATAL Error saving payload: {e}")
@@ -341,7 +342,13 @@ def organize_and_deduplicate():
     do_deduplicate = shared.opts.data.get("api_display_startup_deduplicate", False)
     
     # --- PROTECTED FILES LIST (Crucial for ensuring skeletons are ignored) ---
-    PROTECTED_FILES = ["payload_latest.json", "payload_single_skeleton.json", "payload_xyz_skeleton.json"]
+    PROTECTED_FILES = [
+        "payload_latest.json", 
+        "payload_single_skeleton.json", 
+        "payload_xyz_skeleton.json",
+        "payload_single_lr_skeleton.json",
+        "payload_xyz_lr_skeleton.json"
+    ]
 
     # 1. ORGANIZE
     print("[ApiPayloadDisplay] Starting Organization...")
