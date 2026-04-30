@@ -286,8 +286,10 @@ class Script(scripts.Script):
                     # Create a copy to modify
                     skeleton_payload = self.api_payload.copy()
                     
-                    # Apply Skeleton Rules: Remove prompt, Seed -1
+                    # Apply Skeleton Rules: Remove prompt & hr_prompt, keep negatives, Seed -1
                     skeleton_payload["prompt"] = ""
+                    if "hr_prompt" in skeleton_payload:
+                        skeleton_payload["hr_prompt"] = ""
                     skeleton_payload["seed"] = -1
                     
                     skeleton_filepath = os.path.join(payloads_dir, skeleton_filename)
